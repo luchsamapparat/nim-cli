@@ -1,4 +1,4 @@
-# NIM CLI
+# Nim CLI
 
 Command-line client for [Nim game library](https://github.com/luchsamapparat/nim).
 
