@@ -3,6 +3,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const nim_1 = require("@luchsamapparat/nim");
 const colors = require("colors");
 const inquirer = require("inquirer");
+const strategies = nim_1.getStrategies();
+const strategyNames = {
+    [nim_1.RandomStrategy.name]: 'Randomly remove 1 to 3 tokens',
+    [nim_1.AlwaysOneStrategy.name]: 'Always remove 1 token',
+    [nim_1.MimicHumanStrategy.name]: 'Remove the same number of tokens as you did before',
+    [nim_1.RemainderStrategy.name]: 'Always try to get the heap size to (n * 4) + 1'
+};
 function run() {
     log(colors.rainbow('Welcome to Nim - The Game'));
     setupGame().then(play);
@@ -30,13 +37,10 @@ function setupGame() {
             name: 'strategy',
             type: 'list',
             message: 'What strategy should the computer use?',
-            choices: [{
-                    value: nim_1.RandomStrategy.name,
-                    name: 'Randomly remove 1 to 3 tokens'
-                }, {
-                    value: nim_1.AlwaysOneStrategy.name,
-                    name: 'Always remove 1 token'
-                }]
+            choices: strategies.map(StrategyCls => ({
+                value: StrategyCls.name,
+                name: strategyNames[StrategyCls.name]
+            }))
         }])
         .then(answers => new nim_1.NimGame(parseInt(answers.heapSize, 10), answers.startingPlayer, toStrategy(answers.strategy)));
 }
@@ -66,8 +70,7 @@ function validateTokensToRemove(previousRound, value) {
     return isValid ? true : `You may remove 1 to ${maxTokensToRemove} tokens.`;
 }
 function toStrategy(strategyName) {
-    const StrategyCls = [nim_1.RandomStrategy, nim_1.AlwaysOneStrategy]
-        .find(strategyImpl => strategyImpl.name === strategyName);
+    const StrategyCls = strategies.find(strategyImpl => strategyImpl.name === strategyName);
     return new StrategyCls();
 }
 function toNumber(stringValue) {

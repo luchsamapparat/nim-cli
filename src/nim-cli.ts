@@ -1,6 +1,14 @@
-import { AlwaysOneStrategy, getMaxTokensToRemove, NimGame, Player, RandomStrategy, Round, Strategy } from '@luchsamapparat/nim';
+import { AlwaysOneStrategy, getMaxTokensToRemove, getStrategies, MimicHumanStrategy, NimGame, Player, RandomStrategy, RemainderStrategy, Round, Strategy } from '@luchsamapparat/nim';
 import * as colors from 'colors';
 import * as inquirer from 'inquirer';
+
+const strategies = getStrategies();
+const strategyNames = {
+    [RandomStrategy.name]: 'Randomly remove 1 to 3 tokens',
+    [AlwaysOneStrategy.name]: 'Always remove 1 token',
+    [MimicHumanStrategy.name]: 'Remove the same number of tokens as you did before',
+    [RemainderStrategy.name]: 'Always try to get the heap size to (n * 4) + 1'
+};
 
 export function run() {
     log(colors.rainbow('Welcome to Nim - The Game'));
@@ -30,13 +38,10 @@ function setupGame() {
         name: 'strategy',
         type: 'list',
         message: 'What strategy should the computer use?',
-        choices: [{
-            value: RandomStrategy.name,
-            name: 'Randomly remove 1 to 3 tokens'
-        }, {
-            value: AlwaysOneStrategy.name,
-            name: 'Always remove 1 token'
-        }]
+        choices: strategies.map(StrategyCls => ({
+            value: StrategyCls.name,
+            name: strategyNames[StrategyCls.name]
+        }))
     }])
         .then(answers => new NimGame(
             parseInt(answers.heapSize, 10),
@@ -74,8 +79,7 @@ function validateTokensToRemove(previousRound: Round, value: string) {
 }
 
 function toStrategy(strategyName: string): Strategy {
-    const StrategyCls = [RandomStrategy, AlwaysOneStrategy]
-        .find(strategyImpl => strategyImpl.name === strategyName);
+    const StrategyCls = strategies.find(strategyImpl => strategyImpl.name === strategyName);
     return new StrategyCls();
 }
 
