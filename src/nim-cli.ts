@@ -1,29 +1,25 @@
-import { AlwaysOneStrategy, getMaxTokensToRemove, getStrategies, MimicHumanStrategy, NimGame, Player, RandomStrategy, RemainderStrategy, Round, Strategy } from '@luchsamapparat/nim';
+import { GameState, Player, Strategy, getStrategies, playRound, startGame } from '@luchsamapparat/nim';
 import * as colors from 'colors';
 import * as inquirer from 'inquirer';
+import { findLast, isNull, map, toNumber } from 'lodash';
+import { isUndefined } from 'util';
 
-const strategies = getStrategies();
+const strategies = getStrategies().map(strategyFactory => strategyFactory());
 const strategyNames = {
-    [RandomStrategy.name]: 'Randomly remove 1 to 3 tokens',
-    [AlwaysOneStrategy.name]: 'Always remove 1 token',
-    [MimicHumanStrategy.name]: 'Remove the same number of tokens as you did before',
-    [RemainderStrategy.name]: 'Always try to get the heap size to (n * 4) + 1'
+    randomStrategy: 'Randomly remove 1 to 3 tokens',
+    alwaysMinStrategy: 'Always remove 1 token',
+    mimicHumanStrategy: 'Remove the same number of tokens as you did before',
+    remainderStrategy: 'Always try to get the heap size to (n * 4) + 1'
 };
 
-export function run() {
+export async function run() {
     log(colors.rainbow('Welcome to Nim - The Game'));
 
-    setupGame().then(play);
+    return setupGame().then(play);
 }
 
-function setupGame() {
+async function setupGame() {
     return inquirer.prompt([{
-        name: 'heapSize',
-        type: 'input',
-        message: 'What is the size of the heap?',
-        default: '13',
-        validate: value => !isNaN(parseInt(value, 10)),
-    }, {
         name: 'startingPlayer',
         type: 'list',
         message: 'Who should start?',
@@ -38,62 +34,67 @@ function setupGame() {
         name: 'strategy',
         type: 'list',
         message: 'What strategy should the computer use?',
-        choices: strategies.map(StrategyCls => ({
-            value: StrategyCls.name,
-            name: strategyNames[StrategyCls.name]
+        choices: map(strategyNames, (description, name) => ({
+            value: name,
+            name: description
         }))
     }])
-        .then(answers => new NimGame(
-            parseInt(answers.heapSize, 10),
-            answers.startingPlayer,
-            toStrategy(answers.strategy)
-        ));
+        .then(answers => {
+            return startGame({
+                heapSize: 13,
+                minTokensToRemove: 1,
+                maxTokensToRemove: 3,
+                startingPlayer: answers.startingPlayer as Player,
+                strategy: toStrategy(answers.strategy as string)
+            });
+        });
 }
 
-function play(nimGame: NimGame) {
-    const firstRound = nimGame.start();
-    logRound(firstRound);
-    return playRounds(nimGame, firstRound)
-        .then((lastRound: Round) => log(colors.rainbow(`${lastRound.winner} has won the game.`)));
+async function play(gameState: GameState) {
+    logTurns(gameState, [Player.Machine]);
+
+    return playRounds(gameState)
+        .then(updatedGameState => log(colors.rainbow(`${updatedGameState.winner} has won the game.`)));
 }
 
-function playRounds(nimGame: NimGame, previousRound: Round): Promise<Round> {
+async function playRounds(gameState: GameState): Promise<GameState> {
     return inquirer.prompt([{
         name: 'tokensToRemove',
         type: 'input',
         message: 'Your turn:',
-        validate: value => validateTokensToRemove(previousRound, value)
+        validate: value => validateTokensToRemove(gameState, value)
     }])
         .then(answers => {
-            const round = nimGame.playRound(toNumber(answers.tokensToRemove));
-            logRound(round);
-            return round.isFinished ? round : playRounds(nimGame, round);
+            const updatedGameState = playRound(toNumber(answers.tokensToRemove))(gameState);
+            // tslint:disable-next-line:no-magic-numbers
+            const lastTurnsBy = (updatedGameState.winner === Player.Human) ? [Player.Human] : [Player.Human, Player.Machine];
+            logTurns(updatedGameState, lastTurnsBy);
+            return isNull(updatedGameState.winner) ? playRounds(updatedGameState) : updatedGameState;
         });
 }
 
-function validateTokensToRemove(previousRound: Round, value: string) {
+function validateTokensToRemove(gameState: GameState, value: string) {
     const tokensToRemove = toNumber(value);
-    const maxTokensToRemove = getMaxTokensToRemove(previousRound.heapSize);
-    const isValid = !isNaN(tokensToRemove) && tokensToRemove > 0 && tokensToRemove <= maxTokensToRemove;
-    return isValid ? true : `You may remove 1 to ${maxTokensToRemove} tokens.`;
+    const { minTokensAllowedToRemove, maxTokensAllowedToRemove } = gameState;
+    const isValid = !isNaN(tokensToRemove) && tokensToRemove >= minTokensAllowedToRemove && tokensToRemove <= maxTokensAllowedToRemove;
+    return isValid ? true : `You may remove between ${minTokensAllowedToRemove} and ${maxTokensAllowedToRemove} tokens.`;
 }
 
 function toStrategy(strategyName: string): Strategy {
-    const StrategyCls = strategies.find(strategyImpl => strategyImpl.name === strategyName);
-    return new StrategyCls();
+    return strategies.find(strategy => strategy.name === strategyName)!;
 }
 
-function toNumber(stringValue: string): number {
-    return parseInt(stringValue, 10);
-}
+function logTurns(gameState: GameState, lastTurnsBy: Player[]) {
+    lastTurnsBy.forEach(lastTurnBy => {
+        const turnByPlayer = findLast(gameState.turns, turn => turn.player === lastTurnBy);
 
-function logRound(round: Round) {
-    round.turns.forEach(
-        turn => log(`${turn.player} has removed ${turn.tokensRemoved} tokens from the heap.`)
-    );
+        if (!isUndefined(turnByPlayer)) {
+            log(`${turnByPlayer.player} has removed ${turnByPlayer.tokensRemoved} tokens from the heap.`);
+        }
+    });
 
-    if (!round.isFinished) {
-        log(`There are now ${round.heapSize} tokens on the heap.`);
+    if (isNull(gameState.winner)) {
+        log(`There are now ${gameState.heapSize} tokens on the heap.`);
     }
 }
 
