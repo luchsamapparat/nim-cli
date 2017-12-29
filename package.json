@@ -1,6 +1,6 @@
 {
   "name": "@luchsamapparat/nim-cli",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "CLI client for Nim game",
   "main": "dist/index",
   "typings": "dist/index",
