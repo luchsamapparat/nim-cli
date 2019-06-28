@@ -12,8 +12,6 @@ const nim_1 = require("@luchsamapparat/nim");
 const colors = require("colors");
 const inquirer = require("inquirer");
 const lodash_1 = require("lodash");
-const util_1 = require("util");
-const strategies = nim_1.getStrategies().map(strategyFactory => strategyFactory());
 const strategyNames = {
     randomStrategy: 'Randomly remove 1 to 3 tokens',
     alwaysMinStrategy: 'Always remove 1 token',
@@ -49,15 +47,13 @@ function setupGame() {
                     name: description
                 }))
             }])
-            .then(answers => {
-            return nim_1.startGame({
-                heapSize: 13,
-                minTokensToRemove: 1,
-                maxTokensToRemove: 3,
-                startingPlayer: answers.startingPlayer,
-                strategy: toStrategy(answers.strategy)
-            });
-        });
+            .then((answers) => nim_1.startGame({
+            heapSize: 13,
+            minTokensToRemove: 1,
+            maxTokensToRemove: 3,
+            startingPlayer: answers.startingPlayer,
+            strategy: answers.strategy
+        }));
     });
 }
 function play(gameState) {
@@ -73,11 +69,10 @@ function playRounds(gameState) {
                 name: 'tokensToRemove',
                 type: 'input',
                 message: 'Your turn:',
-                validate: value => validateTokensToRemove(gameState, value)
+                validate: (value) => validateTokensToRemove(gameState, value)
             }])
-            .then(answers => {
+            .then((answers) => {
             const updatedGameState = nim_1.playRound(lodash_1.toNumber(answers.tokensToRemove))(gameState);
-            // tslint:disable-next-line:no-magic-numbers
             const lastTurnsBy = (updatedGameState.winner === nim_1.Player.Human) ? [nim_1.Player.Human] : [nim_1.Player.Human, nim_1.Player.Machine];
             logTurns(updatedGameState, lastTurnsBy);
             return lodash_1.isNull(updatedGameState.winner) ? playRounds(updatedGameState) : updatedGameState;
@@ -90,13 +85,10 @@ function validateTokensToRemove(gameState, value) {
     const isValid = !isNaN(tokensToRemove) && tokensToRemove >= minTokensAllowedToRemove && tokensToRemove <= maxTokensAllowedToRemove;
     return isValid ? true : `You may remove between ${minTokensAllowedToRemove} and ${maxTokensAllowedToRemove} tokens.`;
 }
-function toStrategy(strategyName) {
-    return strategies.find(strategy => strategy.name === strategyName);
-}
 function logTurns(gameState, lastTurnsBy) {
     lastTurnsBy.forEach(lastTurnBy => {
         const turnByPlayer = lodash_1.findLast(gameState.turns, turn => turn.player === lastTurnBy);
-        if (!util_1.isUndefined(turnByPlayer)) {
+        if (!lodash_1.isUndefined(turnByPlayer)) {
             log(`${turnByPlayer.player} has removed ${turnByPlayer.tokensRemoved} tokens from the heap.`);
         }
     });

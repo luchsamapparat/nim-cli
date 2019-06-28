@@ -1,10 +1,8 @@
-import { GameState, Player, Strategy, getStrategies, playRound, startGame } from '@luchsamapparat/nim';
+import { GameState, Player, playRound, startGame, StrategyName } from '@luchsamapparat/nim';
 import * as colors from 'colors';
 import * as inquirer from 'inquirer';
-import { findLast, isNull, map, toNumber } from 'lodash';
-import { isUndefined } from 'util';
+import { findLast, isNull, isUndefined, map, toNumber } from 'lodash';
 
-const strategies = getStrategies().map(strategyFactory => strategyFactory());
 const strategyNames = {
     randomStrategy: 'Randomly remove 1 to 3 tokens',
     alwaysMinStrategy: 'Always remove 1 token',
@@ -16,6 +14,11 @@ export async function run() {
     log(colors.rainbow('Welcome to Nim - The Game'));
 
     return setupGame().then(play);
+}
+
+interface GameSetupAnswers {
+    startingPlayer: Player;
+    strategy: StrategyName;
 }
 
 async function setupGame() {
@@ -39,15 +42,13 @@ async function setupGame() {
             name: description
         }))
     }])
-        .then(answers => {
-            return startGame({
-                heapSize: 13,
-                minTokensToRemove: 1,
-                maxTokensToRemove: 3,
-                startingPlayer: answers.startingPlayer as Player,
-                strategy: toStrategy(answers.strategy as string)
-            });
-        });
+        .then((answers: GameSetupAnswers) => startGame({
+            heapSize: 13,
+            minTokensToRemove: 1,
+            maxTokensToRemove: 3,
+            startingPlayer: answers.startingPlayer as Player,
+            strategy: answers.strategy as StrategyName
+        }));
 }
 
 async function play(gameState: GameState) {
@@ -57,16 +58,19 @@ async function play(gameState: GameState) {
         .then(updatedGameState => log(colors.rainbow(`${updatedGameState.winner} has won the game.`)));
 }
 
+interface RoundAnswers {
+    tokensToRemove: number;
+}
+
 async function playRounds(gameState: GameState): Promise<GameState> {
     return inquirer.prompt([{
         name: 'tokensToRemove',
         type: 'input',
         message: 'Your turn:',
-        validate: value => validateTokensToRemove(gameState, value)
+        validate: (value: string) => validateTokensToRemove(gameState, value)
     }])
-        .then(answers => {
+        .then((answers: RoundAnswers) => {
             const updatedGameState = playRound(toNumber(answers.tokensToRemove))(gameState);
-            // tslint:disable-next-line:no-magic-numbers
             const lastTurnsBy = (updatedGameState.winner === Player.Human) ? [Player.Human] : [Player.Human, Player.Machine];
             logTurns(updatedGameState, lastTurnsBy);
             return isNull(updatedGameState.winner) ? playRounds(updatedGameState) : updatedGameState;
@@ -78,10 +82,6 @@ function validateTokensToRemove(gameState: GameState, value: string) {
     const { minTokensAllowedToRemove, maxTokensAllowedToRemove } = gameState;
     const isValid = !isNaN(tokensToRemove) && tokensToRemove >= minTokensAllowedToRemove && tokensToRemove <= maxTokensAllowedToRemove;
     return isValid ? true : `You may remove between ${minTokensAllowedToRemove} and ${maxTokensAllowedToRemove} tokens.`;
-}
-
-function toStrategy(strategyName: string): Strategy {
-    return strategies.find(strategy => strategy.name === strategyName)!;
 }
 
 function logTurns(gameState: GameState, lastTurnsBy: Player[]) {
